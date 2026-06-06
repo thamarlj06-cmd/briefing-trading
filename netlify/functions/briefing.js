@@ -27,7 +27,7 @@ Genere: 5 actions majeures, forex EUR/USD GBP/USD USD/JPY USD/CAD AUD/USD, crypt
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
-        max_tokens: 3000,
+        max_tokens: 1500,
         messages: [{ role: "user", content: prompt }]
       })
     });
