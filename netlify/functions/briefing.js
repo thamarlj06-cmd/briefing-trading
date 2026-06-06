@@ -20,46 +20,46 @@ exports.handler = async function(event, context) {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
   });
 
-  const prompt = `Date: ${dateStr}
+  // On demande a Claude des donnees separees par des pipes | faciles a parser
+  // Pas de JSON = pas de probleme de JSON
+  const prompt = `Date: ${dateStr}. Reponds avec des lignes de donnees. Format exact, une ligne par element.
 
-Reponds avec EXACTEMENT ce JSON. Remplace les valeurs par de vraies donnees du marche.
-REGLES: Pas d apostrophe. Pas d emoji. Lettres, chiffres, espaces, points uniquement dans les textes.
+ACTIONS_ETABLIES:
+AAPL|Apple|haussier|Analyse courte ici
+MSFT|Microsoft|haussier|Analyse courte ici
+NVDA|Nvidia|haussier|Analyse courte ici
+AMZN|Amazon|neutre|Analyse courte ici
+GOOGL|Alphabet|baissier|Analyse courte ici
+META|Meta|haussier|Analyse courte ici
 
-{"actions":[
-{"ticker":"AAPL","nom":"Apple","categorie":"etablie","tendance":"haussier","analyse":"Courte analyse 10 mots max"},
-{"ticker":"MSFT","nom":"Microsoft","categorie":"etablie","tendance":"haussier","analyse":"Courte analyse 10 mots max"},
-{"ticker":"NVDA","nom":"Nvidia","categorie":"etablie","tendance":"haussier","analyse":"Courte analyse 10 mots max"},
-{"ticker":"AMZN","nom":"Amazon","categorie":"etablie","tendance":"neutre","analyse":"Courte analyse 10 mots max"},
-{"ticker":"GOOGL","nom":"Alphabet","categorie":"etablie","tendance":"baissier","analyse":"Courte analyse 10 mots max"},
-{"ticker":"META","nom":"Meta","categorie":"etablie","tendance":"haussier","analyse":"Courte analyse 10 mots max"},
-{"ticker":"XXX1","nom":"Entreprise emergente 1","categorie":"emergente","tendance":"haussier","analyse":"Courte analyse 10 mots max"},
-{"ticker":"XXX2","nom":"Entreprise emergente 2","categorie":"emergente","tendance":"haussier","analyse":"Courte analyse 10 mots max"},
-{"ticker":"XXX3","nom":"Entreprise emergente 3","categorie":"emergente","tendance":"haussier","analyse":"Courte analyse 10 mots max"},
-{"ticker":"XXX4","nom":"Entreprise emergente 4","categorie":"emergente","tendance":"haussier","analyse":"Courte analyse 10 mots max"}
-],
-"forex":[
-{"paire":"EUR/USD","biais":"haussier","analyse":"Courte analyse 10 mots max"},
-{"paire":"GBP/USD","biais":"baissier","analyse":"Courte analyse 10 mots max"},
-{"paire":"USD/JPY","biais":"haussier","analyse":"Courte analyse 10 mots max"},
-{"paire":"USD/CAD","biais":"neutre","analyse":"Courte analyse 10 mots max"},
-{"paire":"AUD/USD","biais":"baissier","analyse":"Courte analyse 10 mots max"},
-{"paire":"USD/CHF","biais":"haussier","analyse":"Courte analyse 10 mots max"},
-{"paire":"NZD/USD","biais":"neutre","analyse":"Courte analyse 10 mots max"}
-],
-"crypto":[
-{"actif":"BTC/USDT","biais":"haussier","analyse":"Courte analyse 10 mots max"},
-{"actif":"ETH/USDT","biais":"baissier","analyse":"Courte analyse 10 mots max"},
-{"actif":"SOL/USDT","biais":"haussier","analyse":"Courte analyse 10 mots max"}
-],
-"agenda":[
-{"heure":"08:30","pays":"Etats-Unis","evenement":"Nom evenement","prevision":"0","precedent":"0","importance":"3"},
-{"heure":"10:00","pays":"Zone Euro","evenement":"Nom evenement","prevision":"0","precedent":"0","importance":"2"},
-{"heure":"11:00","pays":"Royaume-Uni","evenement":"Nom evenement","prevision":"0","precedent":"0","importance":"2"},
-{"heure":"14:30","pays":"Etats-Unis","evenement":"Nom evenement","prevision":"0","precedent":"0","importance":"3"},
-{"heure":"16:00","pays":"Canada","evenement":"Nom evenement","prevision":"0","precedent":"0","importance":"1"}
-]}
+ACTIONS_EMERGENTES:
+XXX1|Nom entreprise emergente|haussier|Analyse courte ici
+XXX2|Nom entreprise emergente|haussier|Analyse courte ici
+XXX3|Nom entreprise emergente|haussier|Analyse courte ici
+XXX4|Nom entreprise emergente|haussier|Analyse courte ici
 
-Remplace par de vraies donnees du ${dateStr}. Garde exactement la meme structure JSON. Pas d apostrophe. Pas d emoji. JSON pur uniquement.`;
+FOREX:
+EUR/USD|haussier|Analyse courte ici
+GBP/USD|baissier|Analyse courte ici
+USD/JPY|haussier|Analyse courte ici
+USD/CAD|neutre|Analyse courte ici
+AUD/USD|baissier|Analyse courte ici
+USD/CHF|haussier|Analyse courte ici
+NZD/USD|neutre|Analyse courte ici
+
+CRYPTO:
+BTC/USDT|haussier|Analyse courte ici
+ETH/USDT|baissier|Analyse courte ici
+SOL/USDT|haussier|Analyse courte ici
+
+AGENDA:
+08:30|Etats-Unis|Nom evenement|Prevision|Precedent|3
+10:00|Zone Euro|Nom evenement|Prevision|Precedent|2
+11:00|Royaume-Uni|Nom evenement|Prevision|Precedent|2
+14:30|Etats-Unis|Nom evenement|Prevision|Precedent|3
+16:00|Canada|Nom evenement|Prevision|Precedent|1
+
+Remplace par de vraies donnees du ${dateStr}. Garde exactement le format avec les pipes |. Les analyses = 8 mots max, sans apostrophe, sans guillemets, sans caracteres speciaux.`;
 
   try {
     const resp = await fetch("https://api.anthropic.com/v1/messages", {
@@ -71,7 +71,7 @@ Remplace par de vraies donnees du ${dateStr}. Garde exactement la meme structure
       },
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
-        max_tokens: 900,
+        max_tokens: 700,
         messages: [{ role: "user", content: prompt }]
       })
     });
@@ -84,18 +84,60 @@ Remplace par de vraies donnees du ${dateStr}. Garde exactement la meme structure
     let raw = '';
     (data.content || []).forEach(b => { if (b.type === 'text') raw += b.text; });
 
-    raw = raw.trim();
-    raw = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '');
-    const start = raw.indexOf('{');
-    const end = raw.lastIndexOf('}');
-    if (start === -1 || end === -1) throw new Error("Pas de JSON trouve");
-    raw = raw.substring(start, end + 1);
+    // Parser le format pipe
+    const lines = raw.split('\n').map(l => l.trim()).filter(l => l.length > 0);
 
-    // Supprimer tous les caracteres non-ASCII
-    raw = raw.replace(/[^\x00-\x7F]/g, '');
+    const result = {
+      actions: [],
+      forex: [],
+      crypto: [],
+      agenda: []
+    };
 
-    const parsed = JSON.parse(raw);
-    return { statusCode: 200, headers, body: JSON.stringify(parsed) };
+    let section = '';
+    for (const line of lines) {
+      if (line.startsWith('ACTIONS_ETABLIES')) { section = 'etablie'; continue; }
+      if (line.startsWith('ACTIONS_EMERGENTES')) { section = 'emergente'; continue; }
+      if (line.startsWith('FOREX')) { section = 'forex'; continue; }
+      if (line.startsWith('CRYPTO')) { section = 'crypto'; continue; }
+      if (line.startsWith('AGENDA')) { section = 'agenda'; continue; }
+
+      if (!line.includes('|')) continue;
+      const parts = line.split('|').map(p => p.trim());
+
+      if ((section === 'etablie' || section === 'emergente') && parts.length >= 4) {
+        result.actions.push({
+          ticker: parts[0],
+          nom: parts[1],
+          categorie: section,
+          tendance: parts[2],
+          analyse: parts[3]
+        });
+      } else if (section === 'forex' && parts.length >= 3) {
+        result.forex.push({
+          paire: parts[0],
+          biais: parts[1],
+          analyse: parts[2]
+        });
+      } else if (section === 'crypto' && parts.length >= 3) {
+        result.crypto.push({
+          actif: parts[0],
+          biais: parts[1],
+          analyse: parts[2]
+        });
+      } else if (section === 'agenda' && parts.length >= 6) {
+        result.agenda.push({
+          heure: parts[0],
+          pays: parts[1],
+          evenement: parts[2],
+          prevision: parts[3],
+          precedent: parts[4],
+          importance: parts[5]
+        });
+      }
+    }
+
+    return { statusCode: 200, headers, body: JSON.stringify(result) };
 
   } catch (err) {
     return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) };
