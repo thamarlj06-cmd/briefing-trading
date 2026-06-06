@@ -14,9 +14,9 @@ exports.handler = async function(event, context) {
   }
   const now = new Date();
   const dateStr = now.toLocaleDateString('fr-FR', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
-  const prompt = `Tu es analyste financier. Nous sommes le ${dateStr}. Reponds UNIQUEMENT avec du JSON valide sans markdown.
-{"actions":[{"ticker":"AAPL","nom":"Apple","tendance":"haussier","analyse":"Para1.\\nPara2.\\nPara3."}],"forex":[{"paire":"EUR/USD","biais":"baissier","analyse":"Para1.\\nPara2.\\nPara3."}],"crypto":[{"actif":"BTC/USDT","biais":"haussier","analyse":"Para1.\\nPara2.\\nPara3."}],"agenda":[{"heure":"08:30","drapeau":"🇺🇸","evenement":"NFP","prevision":"200K","precedent":"185K","importance":"3"}]}
-Genere: 5 actions majeures, forex EUR/USD GBP/USD USD/JPY USD/CAD AUD/USD, crypto BTC ETH SOL, 8 evenements agenda reels aujourd hui. Tout en francais. JSON UNIQUEMENT.`;
+  const prompt = `Nous sommes le ${dateStr}. Reponds UNIQUEMENT avec du JSON valide, concis, sans markdown.
+{"actions":[{"ticker":"AAPL","nom":"Apple","tendance":"haussier","analyse":"Phrase1. Phrase2."},{"ticker":"NVDA","nom":"Nvidia","tendance":"baissier","analyse":"Phrase1. Phrase2."},{"ticker":"TSLA","nom":"Tesla","tendance":"neutre","analyse":"Phrase1. Phrase2."}],"forex":[{"paire":"EUR/USD","biais":"baissier","analyse":"Phrase1. Phrase2."},{"paire":"GBP/USD","biais":"haussier","analyse":"Phrase1. Phrase2."},{"paire":"USD/JPY","biais":"haussier","analyse":"Phrase1. Phrase2."}],"crypto":[{"actif":"BTC/USDT","biais":"haussier","analyse":"Phrase1. Phrase2."},{"actif":"ETH/USDT","biais":"baissier","analyse":"Phrase1. Phrase2."}],"agenda":[{"heure":"08:30","drapeau":"🇺🇸","evenement":"CPI USA","prevision":"3.2%","precedent":"3.5%","importance":"3"},{"heure":"14:00","drapeau":"🇪🇺","evenement":"BCE taux","prevision":"3.5%","precedent":"3.5%","importance":"3"}]}
+Genere un vrai briefing du ${dateStr}: 3 actions avec news reelles, 3 paires forex avec biais reel, 2 cryptos, 5 evenements agenda reels. Analyses courtes 2 phrases max. JSON STRICT.`;
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -26,8 +26,8 @@ Genere: 5 actions majeures, forex EUR/USD GBP/USD USD/JPY USD/CAD AUD/USD, crypt
         "anthropic-version": "2023-06-01"
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 1500,
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 1000,
         messages: [{ role: "user", content: prompt }]
       })
     });
