@@ -14,9 +14,34 @@ exports.handler = async function(event, context) {
   }
   const now = new Date();
   const dateStr = now.toLocaleDateString('fr-FR', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
-  const prompt = `Nous sommes le ${dateStr}. Reponds UNIQUEMENT avec du JSON valide, concis, sans markdown.
-{"actions":[{"ticker":"AAPL","nom":"Apple","tendance":"haussier","analyse":"Phrase1. Phrase2."},{"ticker":"NVDA","nom":"Nvidia","tendance":"baissier","analyse":"Phrase1. Phrase2."},{"ticker":"TSLA","nom":"Tesla","tendance":"neutre","analyse":"Phrase1. Phrase2."}],"forex":[{"paire":"EUR/USD","biais":"baissier","analyse":"Phrase1. Phrase2."},{"paire":"GBP/USD","biais":"haussier","analyse":"Phrase1. Phrase2."},{"paire":"USD/JPY","biais":"haussier","analyse":"Phrase1. Phrase2."}],"crypto":[{"actif":"BTC/USDT","biais":"haussier","analyse":"Phrase1. Phrase2."},{"actif":"ETH/USDT","biais":"baissier","analyse":"Phrase1. Phrase2."}],"agenda":[{"heure":"08:30","drapeau":"🇺🇸","evenement":"CPI USA","prevision":"3.2%","precedent":"3.5%","importance":"3"},{"heure":"14:00","drapeau":"🇪🇺","evenement":"BCE taux","prevision":"3.5%","precedent":"3.5%","importance":"3"}]}
-Genere un vrai briefing du ${dateStr}: 3 actions avec news reelles, 3 paires forex avec biais reel, 2 cryptos, 5 evenements agenda reels. Analyses courtes 2 phrases max. JSON STRICT.`;
+
+  const prompt = `Date: ${dateStr}. Genere un briefing trading en JSON. IMPORTANT: utilise uniquement des guillemets doubles, pas d apostrophes dans les valeurs. Remplace les apostrophes par des espaces.
+
+Reponds UNIQUEMENT avec ce JSON, rien d autre:
+{
+"actions":[
+{"ticker":"AAPL","nom":"Apple","tendance":"haussier","analyse":"Analyse courte sans apostrophe."},
+{"ticker":"NVDA","nom":"Nvidia","tendance":"baissier","analyse":"Analyse courte sans apostrophe."},
+{"ticker":"TSLA","nom":"Tesla","tendance":"neutre","analyse":"Analyse courte sans apostrophe."}
+],
+"forex":[
+{"paire":"EUR/USD","biais":"baissier","analyse":"Analyse courte sans apostrophe."},
+{"paire":"GBP/USD","biais":"haussier","analyse":"Analyse courte sans apostrophe."},
+{"paire":"USD/JPY","biais":"haussier","analyse":"Analyse courte sans apostrophe."}
+],
+"crypto":[
+{"actif":"BTC/USDT","biais":"haussier","analyse":"Analyse courte sans apostrophe."},
+{"actif":"ETH/USDT","biais":"baissier","analyse":"Analyse courte sans apostrophe."}
+],
+"agenda":[
+{"heure":"08:30","drapeau":"US","evenement":"Evenement 1","prevision":"100","precedent":"95","importance":"3"},
+{"heure":"10:00","drapeau":"EU","evenement":"Evenement 2","prevision":"50","precedent":"48","importance":"2"},
+{"heure":"14:30","drapeau":"US","evenement":"Evenement 3","prevision":"200","precedent":"190","importance":"1"}
+]
+}
+
+Remplace les valeurs generiques par de vraies donnees du ${dateStr}. PAS D APOSTROPHES dans les textes JSON.`;
+
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -27,21 +52,33 @@ Genere un vrai briefing du ${dateStr}: 3 actions avec news reelles, 3 paires for
       },
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
-        max_tokens: 1000,
+        max_tokens: 800,
         messages: [{ role: "user", content: prompt }]
       })
     });
+
     const data = await response.json();
     if (!response.ok) {
       return { statusCode: response.status, headers, body: JSON.stringify({ error: data.error?.message || "Erreur API" }) };
     }
+
     let raw = '';
     (data.content || []).forEach(b => { if (b.type === 'text') raw += b.text; });
-    raw = raw.trim().replace(/^```json\s*/i,'').replace(/^```\s*/i,'').replace(/\s*```$/i,'');
+
+    // Nettoyage agressif
+    raw = raw.trim();
+    raw = raw.replace(/^```json\s*/i,'').replace(/^```\s*/i,'').replace(/\s*```$/i,'');
     const s = raw.indexOf('{'), e = raw.lastIndexOf('}');
     if (s !== -1 && e !== -1) raw = raw.substring(s, e + 1);
+
+    // Remplacer les apostrophes problematiques dans les valeurs JSON
+    raw = raw.replace(/([^\\])'/g, "$1 ");
+
+    // Valider
     JSON.parse(raw);
+
     return { statusCode: 200, headers, body: raw };
+
   } catch (err) {
     return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) };
   }
