@@ -20,16 +20,46 @@ exports.handler = async function(event, context) {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
   });
 
-  // Construire le JSON directement sans laisser Claude le faire
-  // On demande juste les donnees textuelles simples
   const prompt = `Date: ${dateStr}
 
-Reponds avec EXACTEMENT ce JSON. Remplace uniquement les textes entre guillemets par de vraies donnees.
-N utilise JAMAIS d apostrophe. Utilise uniquement des lettres, chiffres, espaces, points, virgules, pourcentages.
+Reponds avec EXACTEMENT ce JSON. Remplace les valeurs par de vraies donnees du marche.
+REGLES: Pas d apostrophe. Pas d emoji. Lettres, chiffres, espaces, points uniquement dans les textes.
 
-{"actions":[{"ticker":"AAA","nom":"Nom entreprise","tendance":"haussier","analyse":"Courte analyse en moins de 10 mots"},{"ticker":"BBB","nom":"Nom entreprise","tendance":"baissier","analyse":"Courte analyse en moins de 10 mots"},{"ticker":"CCC","nom":"Nom entreprise","tendance":"neutre","analyse":"Courte analyse en moins de 10 mots"}],"forex":[{"paire":"EUR/USD","biais":"haussier","analyse":"Courte analyse en moins de 10 mots"},{"paire":"GBP/USD","biais":"baissier","analyse":"Courte analyse en moins de 10 mots"},{"paire":"USD/JPY","biais":"haussier","analyse":"Courte analyse en moins de 10 mots"}],"crypto":[{"actif":"BTC/USDT","biais":"haussier","analyse":"Courte analyse en moins de 10 mots"},{"actif":"ETH/USDT","biais":"baissier","analyse":"Courte analyse en moins de 10 mots"}],"agenda":[{"heure":"08:30","pays":"USA","evenement":"Nom evenement","prevision":"0","precedent":"0","importance":"3"},{"heure":"10:00","pays":"EUR","evenement":"Nom evenement","prevision":"0","precedent":"0","importance":"2"},{"heure":"14:30","pays":"USA","evenement":"Nom evenement","prevision":"0","precedent":"0","importance":"1"}]}
+{"actions":[
+{"ticker":"AAPL","nom":"Apple","categorie":"etablie","tendance":"haussier","analyse":"Courte analyse 10 mots max"},
+{"ticker":"MSFT","nom":"Microsoft","categorie":"etablie","tendance":"haussier","analyse":"Courte analyse 10 mots max"},
+{"ticker":"NVDA","nom":"Nvidia","categorie":"etablie","tendance":"haussier","analyse":"Courte analyse 10 mots max"},
+{"ticker":"AMZN","nom":"Amazon","categorie":"etablie","tendance":"neutre","analyse":"Courte analyse 10 mots max"},
+{"ticker":"GOOGL","nom":"Alphabet","categorie":"etablie","tendance":"baissier","analyse":"Courte analyse 10 mots max"},
+{"ticker":"META","nom":"Meta","categorie":"etablie","tendance":"haussier","analyse":"Courte analyse 10 mots max"},
+{"ticker":"XXX1","nom":"Entreprise emergente 1","categorie":"emergente","tendance":"haussier","analyse":"Courte analyse 10 mots max"},
+{"ticker":"XXX2","nom":"Entreprise emergente 2","categorie":"emergente","tendance":"haussier","analyse":"Courte analyse 10 mots max"},
+{"ticker":"XXX3","nom":"Entreprise emergente 3","categorie":"emergente","tendance":"haussier","analyse":"Courte analyse 10 mots max"},
+{"ticker":"XXX4","nom":"Entreprise emergente 4","categorie":"emergente","tendance":"haussier","analyse":"Courte analyse 10 mots max"}
+],
+"forex":[
+{"paire":"EUR/USD","biais":"haussier","analyse":"Courte analyse 10 mots max"},
+{"paire":"GBP/USD","biais":"baissier","analyse":"Courte analyse 10 mots max"},
+{"paire":"USD/JPY","biais":"haussier","analyse":"Courte analyse 10 mots max"},
+{"paire":"USD/CAD","biais":"neutre","analyse":"Courte analyse 10 mots max"},
+{"paire":"AUD/USD","biais":"baissier","analyse":"Courte analyse 10 mots max"},
+{"paire":"USD/CHF","biais":"haussier","analyse":"Courte analyse 10 mots max"},
+{"paire":"NZD/USD","biais":"neutre","analyse":"Courte analyse 10 mots max"}
+],
+"crypto":[
+{"actif":"BTC/USDT","biais":"haussier","analyse":"Courte analyse 10 mots max"},
+{"actif":"ETH/USDT","biais":"baissier","analyse":"Courte analyse 10 mots max"},
+{"actif":"SOL/USDT","biais":"haussier","analyse":"Courte analyse 10 mots max"}
+],
+"agenda":[
+{"heure":"08:30","pays":"Etats-Unis","evenement":"Nom evenement","prevision":"0","precedent":"0","importance":"3"},
+{"heure":"10:00","pays":"Zone Euro","evenement":"Nom evenement","prevision":"0","precedent":"0","importance":"2"},
+{"heure":"11:00","pays":"Royaume-Uni","evenement":"Nom evenement","prevision":"0","precedent":"0","importance":"2"},
+{"heure":"14:30","pays":"Etats-Unis","evenement":"Nom evenement","prevision":"0","precedent":"0","importance":"3"},
+{"heure":"16:00","pays":"Canada","evenement":"Nom evenement","prevision":"0","precedent":"0","importance":"1"}
+]}
 
-IMPORTANT: JSON pur uniquement. Pas de texte avant ou apres. Pas d apostrophe. Pas d emoji.`;
+Remplace par de vraies donnees du ${dateStr}. Garde exactement la meme structure JSON. Pas d apostrophe. Pas d emoji. JSON pur uniquement.`;
 
   try {
     const resp = await fetch("https://api.anthropic.com/v1/messages", {
@@ -41,48 +71,33 @@ IMPORTANT: JSON pur uniquement. Pas de texte avant ou apres. Pas d apostrophe. P
       },
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
-        max_tokens: 500,
+        max_tokens: 900,
         messages: [{ role: "user", content: prompt }]
       })
     });
 
     const data = await resp.json();
-
     if (!resp.ok) {
-      return {
-        statusCode: resp.status,
-        headers,
-        body: JSON.stringify({ error: data.error?.message || "Erreur API" })
-      };
+      return { statusCode: resp.status, headers, body: JSON.stringify({ error: data.error?.message || "Erreur API" }) };
     }
 
     let raw = '';
     (data.content || []).forEach(b => { if (b.type === 'text') raw += b.text; });
 
-    // Nettoyage
     raw = raw.trim();
     raw = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '');
-
-    // Extraire uniquement le JSON entre { et }
     const start = raw.indexOf('{');
     const end = raw.lastIndexOf('}');
-    if (start === -1 || end === -1) {
-      throw new Error("Pas de JSON trouve dans la reponse");
-    }
+    if (start === -1 || end === -1) throw new Error("Pas de JSON trouve");
     raw = raw.substring(start, end + 1);
 
-    // Supprimer tous les caracteres non-ASCII qui peuvent casser le JSON
+    // Supprimer tous les caracteres non-ASCII
     raw = raw.replace(/[^\x00-\x7F]/g, '');
 
-    // Valider et retourner
     const parsed = JSON.parse(raw);
     return { statusCode: 200, headers, body: JSON.stringify(parsed) };
 
   } catch (err) {
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: err.message })
-    };
+    return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) };
   }
 };
