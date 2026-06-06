@@ -15,32 +15,19 @@ exports.handler = async function(event, context) {
   const now = new Date();
   const dateStr = now.toLocaleDateString('fr-FR', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
 
-  const prompt = `Date: ${dateStr}. Genere un briefing trading en JSON. IMPORTANT: utilise uniquement des guillemets doubles, pas d apostrophes dans les valeurs. Remplace les apostrophes par des espaces.
+  // Prompt ultra-strict avec JSON pre-rempli a completer
+  const prompt = `Tu es un assistant qui repond UNIQUEMENT en JSON valide.
+Date: ${dateStr}
 
-Reponds UNIQUEMENT avec ce JSON, rien d autre:
-{
-"actions":[
-{"ticker":"AAPL","nom":"Apple","tendance":"haussier","analyse":"Analyse courte sans apostrophe."},
-{"ticker":"NVDA","nom":"Nvidia","tendance":"baissier","analyse":"Analyse courte sans apostrophe."},
-{"ticker":"TSLA","nom":"Tesla","tendance":"neutre","analyse":"Analyse courte sans apostrophe."}
-],
-"forex":[
-{"paire":"EUR/USD","biais":"baissier","analyse":"Analyse courte sans apostrophe."},
-{"paire":"GBP/USD","biais":"haussier","analyse":"Analyse courte sans apostrophe."},
-{"paire":"USD/JPY","biais":"haussier","analyse":"Analyse courte sans apostrophe."}
-],
-"crypto":[
-{"actif":"BTC/USDT","biais":"haussier","analyse":"Analyse courte sans apostrophe."},
-{"actif":"ETH/USDT","biais":"baissier","analyse":"Analyse courte sans apostrophe."}
-],
-"agenda":[
-{"heure":"08:30","drapeau":"US","evenement":"Evenement 1","prevision":"100","precedent":"95","importance":"3"},
-{"heure":"10:00","drapeau":"EU","evenement":"Evenement 2","prevision":"50","precedent":"48","importance":"2"},
-{"heure":"14:30","drapeau":"US","evenement":"Evenement 3","prevision":"200","precedent":"190","importance":"1"}
-]
-}
+Reponds avec exactement ce format JSON, en remplacant les valeurs entre < > par de vraies donnees:
 
-Remplace les valeurs generiques par de vraies donnees du ${dateStr}. PAS D APOSTROPHES dans les textes JSON.`;
+{"actions":[{"ticker":"<TICKER1>","nom":"<NOM1>","tendance":"<haussier|baissier|neutre>","analyse":"<max 15 mots sans apostrophe>"},{"ticker":"<TICKER2>","nom":"<NOM2>","tendance":"<haussier|baissier|neutre>","analyse":"<max 15 mots sans apostrophe>"},{"ticker":"<TICKER3>","nom":"<NOM3>","tendance":"<haussier|baissier|neutre>","analyse":"<max 15 mots sans apostrophe>"}],"forex":[{"paire":"EUR/USD","biais":"<haussier|baissier|neutre>","analyse":"<max 15 mots sans apostrophe>"},{"paire":"GBP/USD","biais":"<haussier|baissier|neutre>","analyse":"<max 15 mots sans apostrophe>"},{"paire":"USD/JPY","biais":"<haussier|baissier|neutre>","analyse":"<max 15 mots sans apostrophe>"}],"crypto":[{"actif":"BTC/USDT","biais":"<haussier|baissier|neutre>","analyse":"<max 15 mots sans apostrophe>"},{"actif":"ETH/USDT","biais":"<haussier|baissier|neutre>","analyse":"<max 15 mots sans apostrophe>"}],"agenda":[{"heure":"<HH:MM>","drapeau":"<emoji>","evenement":"<nom court>","prevision":"<valeur>","precedent":"<valeur>","importance":"<1|2|3>"},{"heure":"<HH:MM>","drapeau":"<emoji>","evenement":"<nom court>","prevision":"<valeur>","precedent":"<valeur>","importance":"<1|2|3>"},{"heure":"<HH:MM>","drapeau":"<emoji>","evenement":"<nom court>","prevision":"<valeur>","precedent":"<valeur>","importance":"<1|2|3>"}]}
+
+REGLES ABSOLUES:
+- JSON uniquement, rien avant, rien apres
+- Pas d apostrophes dans les valeurs texte
+- Analyses maximum 15 mots
+- Utilise de vraies donnees du marche pour le ${dateStr}`;
 
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -52,7 +39,7 @@ Remplace les valeurs generiques par de vraies donnees du ${dateStr}. PAS D APOST
       },
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
-        max_tokens: 800,
+        max_tokens: 600,
         messages: [{ role: "user", content: prompt }]
       })
     });
@@ -65,19 +52,20 @@ Remplace les valeurs generiques par de vraies donnees du ${dateStr}. PAS D APOST
     let raw = '';
     (data.content || []).forEach(b => { if (b.type === 'text') raw += b.text; });
 
-    // Nettoyage agressif
+    // Nettoyage
     raw = raw.trim();
     raw = raw.replace(/^```json\s*/i,'').replace(/^```\s*/i,'').replace(/\s*```$/i,'');
     const s = raw.indexOf('{'), e = raw.lastIndexOf('}');
     if (s !== -1 && e !== -1) raw = raw.substring(s, e + 1);
 
-    // Remplacer les apostrophes problematiques dans les valeurs JSON
-    raw = raw.replace(/([^\\])'/g, "$1 ");
+    // Nettoyer les apostrophes dans les valeurs de string JSON
+    raw = raw.replace(/"([^"]*?)'/g, function(match, p1) {
+      return '"' + p1.replace(/'/g, ' ');
+    });
 
     // Valider
-    JSON.parse(raw);
-
-    return { statusCode: 200, headers, body: raw };
+    const parsed = JSON.parse(raw);
+    return { statusCode: 200, headers, body: JSON.stringify(parsed) };
 
   } catch (err) {
     return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) };
