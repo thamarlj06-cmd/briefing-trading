@@ -20,25 +20,25 @@ exports.handler = async function(event, context) {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
   });
 
-  // ── 1. Calendrier économique Finnhub ──────────────────────────
-  let agendaFromAPI = [];
+  // ── 1. Calendrier Finnhub (rapide) ────────────────────────────
+  let agendaData = [];
   try {
     const finnhubKey = process.env.FINNHUB_API_KEY;
     if (finnhubKey) {
       const today = now.toISOString().split('T')[0];
-      const finnResp = await fetch(
+      const r = await fetch(
         `https://finnhub.io/api/v1/calendar/economic?from=${today}&to=${today}&token=${finnhubKey}`
       );
-      if (finnResp.ok) {
-        const finnData = await finnResp.json();
-        if (finnData.economicCalendar && Array.isArray(finnData.economicCalendar)) {
-          agendaFromAPI = finnData.economicCalendar
+      if (r.ok) {
+        const d = await r.json();
+        if (d.economicCalendar) {
+          agendaData = d.economicCalendar
             .filter(e => e.impact === 'high' || e.impact === 'medium')
-            .slice(0, 12)
+            .slice(0, 10)
             .map(e => ({
-              heure: e.time ? e.time.substring(0, 5) : '00:00',
+              heure: (e.time || '00:00').substring(0, 5),
               pays: e.country || 'Global',
-              evenement: e.event || 'Evenement economique',
+              evenement: e.event || 'Evenement',
               prevision: e.estimate !== undefined ? String(e.estimate) : 'N/A',
               precedent: e.prev !== undefined ? String(e.prev) : 'N/A',
               importance: e.impact === 'high' ? '3' : '2'
@@ -46,75 +46,60 @@ exports.handler = async function(event, context) {
         }
       }
     }
-  } catch(e) {
-    console.log('Finnhub error:', e.message);
-  }
+  } catch(e) {}
 
-  const agendaContext = agendaFromAPI.length > 0
-    ? `Voici les vrais evenements economiques du jour depuis Finnhub: ${JSON.stringify(agendaFromAPI)}`
-    : 'Pas de donnees Finnhub disponibles - genere un calendrier realiste pour ce jour.';
-
-  // ── 2. Prompt Claude avec web search pour données réelles ──────
-  const prompt = `Tu es un analyste financier senior avec acces aux donnees de marche en temps reel.
-Date: ${dateStr}.
-${agendaContext}
-
-Reponds avec des lignes separees par des pipes |. Format exact. Pas d apostrophe. Pas d emoji. Pipes uniquement.
-
-ACTIONS_ETABLIES:
-AAPL|Apple Inc.|haussier|court: direction|moyen: direction|long: direction|Synthese 1-2 phrases analyse fondamentale et technique actuelle
-MSFT|Microsoft|haussier|court: direction|moyen: direction|long: direction|Synthese 1-2 phrases
-NVDA|Nvidia|haussier|court: direction|moyen: direction|long: direction|Synthese 1-2 phrases
-AMZN|Amazon|neutre|court: direction|moyen: direction|long: direction|Synthese 1-2 phrases
-GOOGL|Alphabet|baissier|court: direction|moyen: direction|long: direction|Synthese 1-2 phrases
-META|Meta Platforms|haussier|court: direction|moyen: direction|long: direction|Synthese 1-2 phrases
-
-ACTIONS_EMERGENTES:
-TICK1|Nom entreprise|haussier|court: haussier|moyen: haussier|long: haussier|Pourquoi surveiller cette entreprise emergente
-TICK2|Nom entreprise|haussier|court: haussier|moyen: neutre|long: haussier|Pourquoi surveiller cette entreprise emergente
-TICK3|Nom entreprise|haussier|court: neutre|moyen: haussier|long: haussier|Pourquoi surveiller cette entreprise emergente
-TICK4|Nom entreprise|neutre|court: neutre|moyen: haussier|long: haussier|Pourquoi surveiller cette entreprise emergente
+  // ── 2. Prompt ultra-court — Haiku, 800 tokens max ─────────────
+  // Pas de web search — trop lent
+  // Format pipe simple et court
+  const prompt = `Date: ${dateStr}. Reponds UNIQUEMENT avec des lignes pipe. Pas d apostrophe. 8 mots max par analyse.
 
 FOREX:
-EUR/USD|haussier|court: direction|moyen: direction|long: direction|Synthese macro BCE vs Fed politique monetaire niveaux cles attendus|Impact news: effet des dernieres publications macro sur cette paire
-GBP/USD|baissier|court: direction|moyen: direction|long: direction|Synthese macro BOE vs Fed niveaux cles|Impact news: effet des dernieres publications
-USD/JPY|haussier|court: direction|moyen: direction|long: direction|Synthese macro Fed vs BOJ carry trade|Impact news: effet
-USD/CAD|neutre|court: direction|moyen: direction|long: direction|Synthese macro petrole et BOC|Impact news: effet
-AUD/USD|baissier|court: direction|moyen: direction|long: direction|Synthese macro matieres premieres RBA|Impact news: effet
-USD/CHF|neutre|court: direction|moyen: direction|long: direction|Synthese macro franc suisse valeur refuge|Impact news: effet
-NZD/USD|neutre|court: direction|moyen: direction|long: direction|Synthese macro RBNZ exportations|Impact news: effet
-EUR/GBP|neutre|court: direction|moyen: direction|long: direction|Synthese macro divergence BCE BOE|Impact news: effet
-EUR/JPY|haussier|court: direction|moyen: direction|long: direction|Synthese macro carry trade risk sentiment|Impact news: effet
-GBP/JPY|haussier|court: direction|moyen: direction|long: direction|Synthese macro volatilite carry trade|Impact news: effet
-USD/MXN|baissier|court: direction|moyen: direction|long: direction|Synthese macro Banxico relations commerciales|Impact news: effet
-EUR/CAD|neutre|court: direction|moyen: direction|long: direction|Synthese macro BCE vs BOC petrole|Impact news: effet
+EUR/USD|haussier|haussier|neutre|haussier|Dollar faible BCE hawkish|News: CPI impact dollar
+GBP/USD|baissier|baissier|neutre|baissier|BOE dovish UK ralentit|News: PIB UK sous attentes
+USD/JPY|haussier|haussier|haussier|neutre|Fed hawkish BOJ ultra dovish|News: inflation US solide
+USD/CAD|neutre|neutre|neutre|neutre|Petrole stable BOC neutre|News: emploi Canada mitige
+AUD/USD|baissier|baissier|neutre|neutre|Chine ralentit RBA dovish|News: PIB Chine decoit
+USD/CHF|neutre|neutre|haussier|neutre|Franc refuge dollar fort|News: risque off CHF hausse
+NZD/USD|baissier|baissier|baissier|neutre|RBNZ dovish croissance faible|News: inflation NZ basse
+EUR/GBP|haussier|haussier|neutre|neutre|BCE plus hawkish que BOE|News: divergence maintenue
+EUR/JPY|haussier|haussier|haussier|haussier|Carry trade actif risk on|News: sentiment positif
+GBP/JPY|haussier|haussier|haussier|neutre|Carry trade BOJ inactif|News: volatilite elevee
+USD/MXN|baissier|neutre|baissier|neutre|Banxico taux eleves peso fort|News: relations US Mexique
+EUR/CAD|neutre|neutre|neutre|neutre|BCE vs BOC similaires|News: petrole indecis
 
 FOREX_SURVEILLER:
-EUR/USD|1.0000|1.0000|haussier|Setup SMC a surveiller avec zone cle et raison
-GBP/USD|1.0000|1.0000|baissier|Setup SMC a surveiller avec zone cle et raison
-USD/JPY|100.00|100.00|haussier|Setup SMC a surveiller avec zone cle et raison
+EUR/USD|1.0820|1.0920|haussier|OB haussier 4H zone cle
+GBP/USD|1.2600|1.2750|baissier|FVG baissier resistance majeure
+USD/JPY|148.00|150.50|haussier|OTE zone support intervention BOJ
+
+ACTIONS_ETABLIES:
+AAPL|Apple|haussier|haussier|haussier|haussier|Resultats solides AI integration
+MSFT|Microsoft|haussier|haussier|haussier|haussier|Azure croissance Cloud domination
+NVDA|Nvidia|haussier|haussier|haussier|haussier|Demande GPU AI insatiable
+AMZN|Amazon|haussier|neutre|haussier|haussier|AWS solide retail resilient
+GOOGL|Alphabet|neutre|neutre|haussier|haussier|AI compet mais search stable
+META|Meta|haussier|haussier|haussier|haussier|Reels monetisation forte
+
+ACTIONS_EMERGENTES:
+SMCI|Super Micro Computer|haussier|haussier|haussier|haussier|Serveurs AI forte demande
+PLTR|Palantir|haussier|haussier|haussier|haussier|Contrats gouvernement AI
+ARM|ARM Holdings|haussier|haussier|haussier|haussier|Chips AI mobile domination
+RDDT|Reddit|neutre|neutre|haussier|haussier|Monetisation donnees AI
 
 CRYPTO:
-BTC/USDT|haussier|court: direction|moyen: direction|long: direction|Synthese technique et sentiment crypto actuel|Impact news: effet des dernieres nouvelles crypto
-ETH/USDT|neutre|court: direction|moyen: direction|long: direction|Synthese Ethereum technique et fondamentaux|Impact news: effet
-SOL/USDT|haussier|court: direction|moyen: direction|long: direction|Synthese Solana technique|Impact news: effet
-XRP/USDT|neutre|court: direction|moyen: direction|long: direction|Synthese XRP et contexte reglementaire|Impact news: effet
+BTC/USDT|haussier|haussier|haussier|haussier|ETF institutionnel halving|News: adoption institutionnelle
+ETH/USDT|neutre|neutre|haussier|haussier|Staking rendement stable|News: upgrade reseau
+SOL/USDT|haussier|haussier|haussier|haussier|DeFi actif TVL croissant|News: ecosysteme fort
+XRP/USDT|neutre|neutre|neutre|haussier|Reglementaire incertain SEC|News: proces en cours
 
 NEWS:
-Titre de la news majeure 1|Categorie|Resume de l impact sur les marches en 1-2 phrases|haute|Paires ou indices affectes: EUR/USD GBP/USD
-Titre de la news majeure 2|Categorie|Resume de l impact sur les marches|moyenne|Paires affectees: USD/JPY
-Titre de la news majeure 3|Categorie|Resume de l impact|haute|Paires affectees: BTC ETH
-Titre de la news majeure 4|Categorie|Resume de l impact|faible|Indices affectes: SP500
-Titre de la news majeure 5|Categorie|Resume de l impact|haute|Paires affectees: XAU/USD
+Fed maintient taux directeurs|Politique monetaire|Dollar renforce pause Fed attendue impact baissier EUR|haute|EUR/USD USD/JPY
+BCE signaux hawkish persistants|Politique monetaire|Euro soutenu divergence Fed BCE favorable EUR|haute|EUR/USD EUR/GBP EUR/JPY
+Chine stimulus economique|Macro global|AUD soutenu matieres premieres hausse risk on crypto|moyenne|AUD/USD BTC ETH
+Emploi US resilient|Macro USA|Dollar fort toutes paires USD impact baissier majeurs|haute|EUR/USD GBP/USD AUD/USD
+Tensions geopolitiques persistantes|Geopolitique|CHF JPY demande refuge or hausse crypto mixte|moyenne|USD/CHF USD/JPY XAU/USD
 
-AGENDA:
-${agendaFromAPI.length > 0
-  ? agendaFromAPI.map(e => `${e.heure}|${e.pays}|${e.evenement}|${e.prevision}|${e.precedent}|${e.importance}`).join('\n')
-  : `08:30|Etats-Unis|Evenement economique majeur|Prevision|Precedent|3
-10:00|Zone Euro|Evenement economique|Prevision|Precedent|2
-14:30|Etats-Unis|Evenement economique|Prevision|Precedent|3`}
-
-Remplace TOUTES les valeurs generiques par de vraies donnees basees sur tes connaissances les plus recentes du ${dateStr}. Chaque analyse doit etre utile pour un trader SMC Forex. Pas d apostrophe dans les textes.`;
+Remplace les valeurs par des donnees reelles du ${dateStr}. Garde format pipe exact.`;
 
   try {
     const resp = await fetch("https://api.anthropic.com/v1/messages", {
@@ -126,15 +111,17 @@ Remplace TOUTES les valeurs generiques par de vraies donnees basees sur tes conn
       },
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
-        max_tokens: 2500,
-        tools: [{ type: "web_search_20250305", name: "web_search" }],
+        max_tokens: 900,
         messages: [{ role: "user", content: prompt }]
       })
     });
 
     const data = await resp.json();
     if (!resp.ok) {
-      return { statusCode: resp.status, headers, body: JSON.stringify({ error: data.error?.message || "Erreur API" }) };
+      return {
+        statusCode: resp.status, headers,
+        body: JSON.stringify({ error: data.error?.message || "Erreur API" })
+      };
     }
 
     let raw = '';
@@ -143,13 +130,10 @@ Remplace TOUTES les valeurs generiques par de vraies donnees basees sur tes conn
     const lines = raw.split('\n').map(l => l.trim()).filter(l => l.length > 0);
 
     const result = {
-      actions: [],
-      forex: [],
-      forex_surveiller: [],
-      crypto: [],
-      news: [],
-      agenda: agendaFromAPI.length > 0 ? agendaFromAPI : [],
-      source_agenda: agendaFromAPI.length > 0 ? 'Finnhub' : 'Claude'
+      actions: [], forex: [], forex_surveiller: [],
+      crypto: [], news: [],
+      agenda: agendaData,
+      source_agenda: agendaData.length > 0 ? 'Finnhub' : 'Estimé'
     };
 
     let section = '';
@@ -160,40 +144,31 @@ Remplace TOUTES les valeurs generiques par de vraies donnees basees sur tes conn
       if (line.startsWith('FOREX'))             { section = 'forex';      continue; }
       if (line.startsWith('CRYPTO'))            { section = 'crypto';     continue; }
       if (line.startsWith('NEWS'))              { section = 'news';       continue; }
-      if (line.startsWith('AGENDA'))            { section = 'agenda';     continue; }
       if (!line.includes('|')) continue;
       const p = line.split('|').map(x => x.trim());
 
-      if ((section === 'etablie' || section === 'emergente') && p.length >= 7) {
+      if ((section==='etablie'||section==='emergente') && p.length>=7) {
         result.actions.push({
-          ticker: p[0], nom: p[1], categorie: section, tendance: p[2],
-          court: p[3], moyen: p[4], long: p[5], analyse: p[6]
+          ticker:p[0], nom:p[1], categorie:section, tendance:p[2],
+          court:p[3], moyen:p[4], long:p[5], analyse:p[6]
         });
-      } else if (section === 'forex' && p.length >= 7) {
+      } else if (section==='forex' && p.length>=7) {
         result.forex.push({
-          paire: p[0], biais: p[1],
-          court: p[2], moyen: p[3], long: p[4],
-          analyse: p[5], impact_news: p[6]
+          paire:p[0], biais:p[1], court:p[2], moyen:p[3], long:p[4],
+          analyse:p[5], impact_news:p[6]
         });
-      } else if (section === 'surveiller' && p.length >= 5) {
+      } else if (section==='surveiller' && p.length>=5) {
         result.forex_surveiller.push({
-          paire: p[0], support: p[1], resistance: p[2], biais: p[3], raison: p[4]
+          paire:p[0], support:p[1], resistance:p[2], biais:p[3], raison:p[4]
         });
-      } else if (section === 'crypto' && p.length >= 7) {
+      } else if (section==='crypto' && p.length>=7) {
         result.crypto.push({
-          actif: p[0], biais: p[1],
-          court: p[2], moyen: p[3], long: p[4],
-          analyse: p[5], impact_news: p[6]
+          actif:p[0], biais:p[1], court:p[2], moyen:p[3], long:p[4],
+          analyse:p[5], impact_news:p[6]
         });
-      } else if (section === 'news' && p.length >= 5) {
+      } else if (section==='news' && p.length>=5) {
         result.news.push({
-          titre: p[0], categorie: p[1], impact: p[2],
-          importance: p[3], marches: p[4]
-        });
-      } else if (section === 'agenda' && agendaFromAPI.length === 0 && p.length >= 6) {
-        result.agenda.push({
-          heure: p[0], pays: p[1], evenement: p[2],
-          prevision: p[3], precedent: p[4], importance: p[5]
+          titre:p[0], categorie:p[1], impact:p[2], importance:p[3], marches:p[4]
         });
       }
     }
