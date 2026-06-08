@@ -92,13 +92,23 @@
   </header>
 
   <div class="tabs">
-    <button class="tab active" onclick="switchTab('actions')" id="tab-actions"><span class="tab-icon">📈</span>Actions</button>
+    <button class="tab active" onclick="switchTab('surveiller')" id="tab-surveiller"><span class="tab-icon">🎯</span>Surveiller</button>
+    <button class="tab" onclick="switchTab('actions')" id="tab-actions"><span class="tab-icon">📈</span>Actions</button>
     <button class="tab" onclick="switchTab('forex')" id="tab-forex"><span class="tab-icon">💱</span>Forex</button>
     <button class="tab" onclick="switchTab('crypto')" id="tab-crypto"><span class="tab-icon">₿</span>Crypto</button>
+    <button class="tab" onclick="switchTab('news')" id="tab-news"><span class="tab-icon">📰</span>News</button>
     <button class="tab" onclick="switchTab('agenda')" id="tab-agenda"><span class="tab-icon">📅</span>Agenda</button>
   </div>
 
-  <div class="section active" id="section-actions">
+  <!-- SECTION SURVEILLER -->
+  <div class="section active" id="section-surveiller">
+    <div class="sec-label">🎯 Paires à surveiller aujourd'hui</div>
+    <div id="content-surveiller">
+      <div class="loading-wrap" style="padding:24px"><div class="loading-text">En attente...</div></div>
+    </div>
+  </div>
+
+  <div class="section" id="section-actions">
     <div class="sec-label">Résultats & Prévisions d'entreprises</div>
     <div id="content-actions">
       <div class="setup-banner">
@@ -126,6 +136,11 @@
   <div class="section" id="section-crypto">
     <div class="sec-label">Marchés Crypto — Analyse & Perspectives</div>
     <div id="content-crypto"><div class="loading-wrap" style="padding:24px"><div class="loading-text">En attente...</div></div></div>
+  </div>
+
+  <div class="section" id="section-news">
+    <div class="sec-label">📰 Actualités financières du jour</div>
+    <div id="content-news"><div class="loading-wrap" style="padding:24px"><div class="loading-text">En attente...</div></div></div>
   </div>
 
   <div class="section" id="section-agenda">
@@ -159,8 +174,7 @@ function renderBriefing(data) {
   (data.actions||[]).forEach(a => {
     const bc = a.tendance==='haussier'?'badge-bull':a.tendance==='baissier'?'badge-bear':'badge-neu';
     const bt = a.tendance==='haussier'?'▲ HAUSSIER':a.tendance==='baissier'?'▼ BAISSIER':'→ NEUTRE';
-    const catBadge = a.categorie === 'emergente' ? '<span class="badge" style="background:rgba(139,92,246,0.1);border-color:rgba(139,92,246,0.4);color:#a78bfa;margin-left:6px;">EMERGENTE</span>' : '';
-    html += `<div class="card"><div class="card-header"><span class="card-title">${a.ticker} — ${a.nom}${catBadge}</span><span class="badge ${bc}">${bt}</span></div><div class="card-body">${(a.analyse||'').split('\n').filter(l=>l.trim()).map(l=>`<p>${l}</p>`).join('')}</div></div>`;
+    html += `<div class="card"><div class="card-header"><span class="card-title">${a.ticker} — ${a.nom}</span><span class="badge ${bc}">${bt}</span></div><div class="card-body">${(a.analyse||'').split('\n').filter(l=>l.trim()).map(l=>`<p>${l}</p>`).join('')}</div></div>`;
   });
   document.getElementById('content-actions').innerHTML = html || '<div class="error-box">Aucune donnée disponible.</div>';
 
@@ -169,7 +183,14 @@ function renderBriefing(data) {
   (data.forex||[]).forEach(f => {
     const bc = f.biais==='haussier'?'badge-bull':f.biais==='baissier'?'badge-bear':'badge-neu';
     const bt = f.biais==='haussier'?'▲ LONG':f.biais==='baissier'?'▼ SHORT':'→ RANGE';
-    html += `<div class="card"><div class="card-header"><span class="card-title" style="font-family:var(--mono);font-size:17px;">${f.paire}</span><span class="badge ${bc}">${bt}</span></div><div class="card-body">${(f.analyse||'').split('\n').filter(l=>l.trim()).map(l=>`<p>${l}</p>`).join('')}</div></div>`;
+    const horizons = (f.court||f.moyen||f.long) ? `
+      <div style="display:flex;gap:8px;margin:8px 0;flex-wrap:wrap;">
+        ${f.court?`<span style="font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:4px;background:rgba(30,45,74,0.5);color:var(--text-dim);">COURT: ${f.court.replace('court:','').trim()}</span>`:''}
+        ${f.moyen?`<span style="font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:4px;background:rgba(30,45,74,0.5);color:var(--text-dim);">MOYEN: ${f.moyen.replace('moyen:','').trim()}</span>`:''}
+        ${f.long?`<span style="font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:4px;background:rgba(30,45,74,0.5);color:var(--text-dim);">LONG: ${f.long.replace('long:','').trim()}</span>`:''}
+      </div>` : '';
+    const impactNews = f.impact_news ? `<div style="margin-top:8px;padding:8px;background:rgba(240,165,0,0.06);border-left:2px solid var(--accent);border-radius:4px;font-size:12px;color:var(--text-dim);"><strong style="color:var(--accent);">Impact news:</strong> ${f.impact_news}</div>` : '';
+    html += `<div class="card"><div class="card-header"><span class="card-title" style="font-family:var(--mono);font-size:17px;">${f.paire}</span><span class="badge ${bc}">${bt}</span></div><div class="card-body">${horizons}<p>${f.analyse||''}</p>${impactNews}</div></div>`;
   });
   document.getElementById('content-forex').innerHTML = html || '<div class="error-box">Données Forex indisponibles.</div>';
 
@@ -178,9 +199,35 @@ function renderBriefing(data) {
   (data.crypto||[]).forEach(c => {
     const bc = c.biais==='haussier'?'badge-bull':c.biais==='baissier'?'badge-bear':'badge-neu';
     const bt = c.biais==='haussier'?'▲ BULL':c.biais==='baissier'?'▼ BEAR':'→ RANGE';
-    html += `<div class="card"><div class="card-header"><span class="card-title" style="font-family:var(--mono);font-size:17px;">${c.actif}</span><span class="badge ${bc}">${bt}</span></div><div class="card-body">${(c.analyse||'').split('\n').filter(l=>l.trim()).map(l=>`<p>${l}</p>`).join('')}</div></div>`;
+    const horizons = (c.court||c.moyen||c.long) ? `
+      <div style="display:flex;gap:8px;margin:8px 0;flex-wrap:wrap;">
+        ${c.court?`<span style="font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:4px;background:rgba(30,45,74,0.5);color:var(--text-dim);">COURT: ${c.court.replace('court:','').trim()}</span>`:''}
+        ${c.moyen?`<span style="font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:4px;background:rgba(30,45,74,0.5);color:var(--text-dim);">MOYEN: ${c.moyen.replace('moyen:','').trim()}</span>`:''}
+        ${c.long?`<span style="font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:4px;background:rgba(30,45,74,0.5);color:var(--text-dim);">LONG: ${c.long.replace('long:','').trim()}</span>`:''}
+      </div>` : '';
+    const impactNews = c.impact_news ? `<div style="margin-top:8px;padding:8px;background:rgba(240,165,0,0.06);border-left:2px solid var(--accent);border-radius:4px;font-size:12px;color:var(--text-dim);"><strong style="color:var(--accent);">Impact news:</strong> ${c.impact_news}</div>` : '';
+    html += `<div class="card"><div class="card-header"><span class="card-title" style="font-family:var(--mono);font-size:17px;">${c.actif}</span><span class="badge ${bc}">${bt}</span></div><div class="card-body">${horizons}<p>${c.analyse||''}</p>${impactNews}</div></div>`;
   });
   document.getElementById('content-crypto').innerHTML = html || '<div class="error-box">Données Crypto indisponibles.</div>';
+
+  // NEWS
+  html = '';
+  if (data.news && data.news.length > 0) {
+    data.news.forEach(n => {
+      const impIcon = n.importance==='haute'?'🔴':n.importance==='moyenne'?'🟡':'⚪';
+      const marchesHtml = n.marches ? `<div style="margin-top:8px;font-family:var(--mono);font-size:10px;color:var(--accent);letter-spacing:0.5px;">${n.marches}</div>` : '';
+      html += `<div class="card" style="${n.importance==='haute'?'border-color:rgba(239,68,68,0.3);':''}">
+        <div class="card-header">
+          <span class="card-title" style="font-size:14px;">${impIcon} ${n.titre}</span>
+          <span class="badge badge-neu" style="font-size:9px;">${n.categorie}</span>
+        </div>
+        <div class="card-body" style="font-size:13px;">${n.impact}${marchesHtml}</div>
+      </div>`;
+    });
+  } else {
+    html = '<div class="card"><div class="card-body" style="text-align:center;color:var(--text-dim);">Aucune actualité majeure.</div></div>';
+  }
+  document.getElementById('content-news').innerHTML = html;
 
   // AGENDA
   html = '';
@@ -188,10 +235,10 @@ function renderBriefing(data) {
     const imp = parseInt(n.importance)||1;
     const stars = imp>=3?'<span class="stars high">★★★</span>':imp==2?'<span class="stars med">★★☆</span>':'<span class="stars low">★☆☆</span>';
     const bg = imp>=3?'background:rgba(240,165,0,0.08);border-radius:6px;margin:0 -14px;padding:10px 14px;':'';
-    html += `<div class="news-item" style="${bg}"><div class="news-time">${n.heure}</div><div class="news-info"><div class="news-name">${n.evenement}</div><div class="news-prev" style="display:flex;gap:8px;flex-wrap:wrap;"><span style="color:#f0a500;font-weight:500;">${n.pays||''}</span>${n.prevision?'<span>Prev: '+n.prevision+'</span>':''} ${n.precedent?'<span>Prec: '+n.precedent+'</span>':''}</div></div><div>${stars}</div></div>`;
+    html += `<div class="news-item" style="${bg}"><div class="news-time">${n.heure}</div><div class="news-flag">${n.drapeau||'🌐'}</div><div class="news-info"><div class="news-name">${n.evenement}</div><div class="news-prev">${n.prevision?'Prév: '+n.prevision:''} ${n.precedent?'| Préc: '+n.precedent:''}</div></div><div class="news-imp">${stars}</div></div>`;
   });
   document.getElementById('content-agenda').innerHTML =
-    `<div class="card"><div class="card-header"><span class="card-title">Évènements du jour</span><span class="badge badge-hot">★★★ = ÉVITER</span></div><div class="card-body" style="padding:14px;">${html}</div></div>
+    `<div class="card"><div class="card-header"><span class="card-title">Évènements du jour</span><div style="display:flex;gap:6px;align-items:center;"><span class="badge badge-hot">★★★ = ÉVITER</span>${data.source_agenda==='Finnhub'?'<span class="badge" style="color:#00BCD4;border-color:rgba(0,188,212,0.4);background:rgba(0,188,212,0.08);font-size:9px;">FINNHUB LIVE</span>':'<span class="badge badge-neu" style="font-size:9px;">ESTIMÉ</span>'}</div></div><div class="card-body" style="padding:14px;">${html}</div></div>
      <div class="card" style="border-color:rgba(240,165,0,0.3);"><div class="card-body" style="font-size:12px;color:var(--text-dim);line-height:1.7;"><strong style="color:var(--accent);">★★★ Impact élevé</strong> — Éviter 30 min avant et après.<br><strong style="color:#94a3b8;">★★☆ Impact modéré</strong> — Réduire la taille de position.<br><strong style="color:var(--text-dim);">★☆☆ Impact faible</strong> — Surveillance légère.</div></div>`;
 }
 
