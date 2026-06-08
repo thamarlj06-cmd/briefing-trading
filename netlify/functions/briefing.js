@@ -127,6 +127,15 @@ Remplace les valeurs par des donnees reelles du ${dateStr}. Garde format pipe ex
     let raw = '';
     (data.content || []).forEach(b => { if (b.type === 'text') raw += b.text; });
 
+    // Nettoyer la réponse — garder uniquement à partir de la première section connue
+    const sectionMarkers = ['FOREX_SURVEILLER','FOREX:','ACTIONS_ETABLIES','ACTIONS_EMERGENTES','CRYPTO:','NEWS:','AGENDA:'];
+    let startIdx = raw.length;
+    for (const marker of sectionMarkers) {
+      const idx = raw.indexOf(marker);
+      if (idx !== -1 && idx < startIdx) startIdx = idx;
+    }
+    if (startIdx < raw.length) raw = raw.substring(startIdx);
+
     const lines = raw.split('\n').map(l => l.trim()).filter(l => l.length > 0);
 
     const result = {
@@ -144,6 +153,7 @@ Remplace les valeurs par des donnees reelles du ${dateStr}. Garde format pipe ex
       if (line.startsWith('FOREX'))             { section = 'forex';      continue; }
       if (line.startsWith('CRYPTO'))            { section = 'crypto';     continue; }
       if (line.startsWith('NEWS'))              { section = 'news';       continue; }
+      if (line.startsWith('AGENDA'))            { section = 'agenda';     continue; }
       if (!line.includes('|')) continue;
       const p = line.split('|').map(x => x.trim());
 
