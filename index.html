@@ -169,12 +169,40 @@ function switchTab(name) {
 }
 
 function renderBriefing(data) {
-  // ACTIONS
+
+  // SURVEILLER — paires à potentiel du jour
   let html = '';
+  if (!data.forex_surveiller || data.forex_surveiller.length === 0) {
+    html = '<div class="card"><div class="card-body" style="text-align:center;color:var(--text-dim);padding:20px;">Aucune paire prioritaire identifiée aujourd\'hui.</div></div>';
+  } else {
+    html += '<div class="card" style="border-color:rgba(240,165,0,0.3);"><div class="card-header"><span class="card-title" style="color:var(--accent);">Setups prioritaires du jour</span><span class="badge badge-hot">SMC Ready</span></div><div class="card-body" style="padding:0;">';
+    (data.forex_surveiller||[]).forEach(f => {
+      const bc = f.biais==='haussier'?'badge-bull':f.biais==='baissier'?'badge-bear':'badge-neu';
+      const bt = f.biais==='haussier'?'▲ LONG':f.biais==='baissier'?'▼ SHORT':'→ RANGE';
+      html += `<div style="padding:14px 16px;border-bottom:1px solid var(--border);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <span style="font-family:var(--mono);font-size:18px;color:var(--bright);font-weight:600;">${f.paire}</span>
+          <span class="badge ${bc}">${bt}</span>
+        </div>
+        <div style="display:flex;gap:16px;margin-bottom:6px;">
+          <span style="font-family:var(--mono);font-size:11px;color:var(--green);">Support: ${f.support}</span>
+          <span style="font-family:var(--mono);font-size:11px;color:var(--red);">Résistance: ${f.resistance}</span>
+        </div>
+        <div style="font-size:13px;color:var(--text-dim);">${f.raison}</div>
+      </div>`;
+    });
+    html += '</div></div>';
+  }
+  document.getElementById('content-surveiller').innerHTML = html;
+
+  // ACTIONS
+  html = '';
   (data.actions||[]).forEach(a => {
     const bc = a.tendance==='haussier'?'badge-bull':a.tendance==='baissier'?'badge-bear':'badge-neu';
     const bt = a.tendance==='haussier'?'▲ HAUSSIER':a.tendance==='baissier'?'▼ BAISSIER':'→ NEUTRE';
-    html += `<div class="card"><div class="card-header"><span class="card-title">${a.ticker} — ${a.nom}</span><span class="badge ${bc}">${bt}</span></div><div class="card-body">${(a.analyse||'').split('\n').filter(l=>l.trim()).map(l=>`<p>${l}</p>`).join('')}</div></div>`;
+    const catBadge = a.categorie==='emergente'?'<span class="badge" style="background:rgba(139,92,246,0.1);border-color:rgba(139,92,246,0.4);color:#a78bfa;margin-left:6px;">ÉMERGENTE</span>':'';
+    const horizons = (a.court||a.moyen||a.long)?`<div style="display:flex;gap:8px;margin:8px 0;flex-wrap:wrap;">${a.court?`<span style="font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:4px;background:rgba(30,45,74,0.5);color:var(--text-dim);">COURT: ${a.court.replace('court:','').trim()}</span>`:''}${a.moyen?`<span style="font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:4px;background:rgba(30,45,74,0.5);color:var(--text-dim);">MOYEN: ${a.moyen.replace('moyen:','').trim()}</span>`:''}${a.long?`<span style="font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:4px;background:rgba(30,45,74,0.5);color:var(--text-dim);">LONG: ${a.long.replace('long:','').trim()}</span>`:''}</div>`:'';
+    html += `<div class="card"><div class="card-header"><span class="card-title">${a.ticker} — ${a.nom}${catBadge}</span><span class="badge ${bc}">${bt}</span></div><div class="card-body">${horizons}<p>${a.analyse||''}</p></div></div>`;
   });
   document.getElementById('content-actions').innerHTML = html || '<div class="error-box">Aucune donnée disponible.</div>';
 
@@ -248,9 +276,11 @@ async function generateBriefing() {
   btn.textContent = '...';
 
   const loading = (msg) => `<div class="loading-wrap"><div class="spinner"></div><div class="loading-text">GÉNÉRATION EN COURS</div><div class="loading-step">${msg}</div></div>`;
+  document.getElementById('content-surveiller').innerHTML = loading('Identification des setups...');
   document.getElementById('content-actions').innerHTML = loading('Analyse des entreprises...');
   document.getElementById('content-forex').innerHTML   = loading('Analyse macroéconomique...');
   document.getElementById('content-crypto').innerHTML  = loading('Analyse crypto...');
+  document.getElementById('content-news').innerHTML    = loading('Actualités du jour...');
   document.getElementById('content-agenda').innerHTML  = loading('Construction de l\'agenda...');
 
   try {
@@ -279,9 +309,11 @@ async function generateBriefing() {
 
   } catch(err) {
     const errHtml = `<div class="error-box">${err.message}<br><small style="opacity:0.6;font-size:11px;display:block;margin-top:6px;">Vérifie que ANTHROPIC_API_KEY est configurée dans Netlify → Environment variables, puis redéploie.</small></div>`;
+    document.getElementById('content-surveiller').innerHTML = errHtml;
     document.getElementById('content-actions').innerHTML = errHtml;
     document.getElementById('content-forex').innerHTML   = errHtml;
     document.getElementById('content-crypto').innerHTML  = errHtml;
+    document.getElementById('content-news').innerHTML    = errHtml;
     document.getElementById('content-agenda').innerHTML  = errHtml;
   }
 
